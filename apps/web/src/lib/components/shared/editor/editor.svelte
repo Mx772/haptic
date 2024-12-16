@@ -15,6 +15,7 @@
 	import Shortcut from '../shortcut.svelte';
 	import { SHORTCUTS } from '@/constants';
 	import { get } from 'svelte/store';
+	import { Image } from '@tiptap/extension-image';
 
 	let element: HTMLDivElement;
 	let tiptapEditor: Editor;
@@ -54,6 +55,12 @@
 							'text-primary underline hover:text-primary/80 transition-all cursor-pointer text-base [&>*]:font-normal'
 					}
 				}),
+				Image.configure({
+					HTMLAttributes: {
+						class: 'max-w-full rounded-lg'
+					},
+					allowBase64: true
+				}),
 				Markdown.configure({
 					linkify: true,
 					transformPastedText: true
@@ -62,6 +69,56 @@
 			editorProps: {
 				attributes: {
 					class: 'prose prose-theme mx-auto focus:outline-none min-h-full pb-6 select-text'
+				},
+				handleDrop: (view, event, slice, moved) => {
+					if (
+						!moved &&
+						event.dataTransfer &&
+						event.dataTransfer.files &&
+						event.dataTransfer.files[0]
+					) {
+						const file = event.dataTransfer.files[0];
+						if (file.type.startsWith('image/')) {
+							event.preventDefault();
+							const reader = new FileReader();
+							reader.onload = (e) => {
+								if (typeof e.target?.result === 'string') {
+									const node = view.state.schema.nodes.image.create({
+										src: e.target.result
+									});
+									const transaction = view.state.tr.replaceSelectionWith(node);
+									view.dispatch(transaction);
+								}
+							};
+							reader.readAsDataURL(file);
+							return true;
+						}
+					}
+					return false;
+				},
+				handlePaste: (view, event) => {
+					const items = Array.from(event.clipboardData?.items || []);
+					const image = items.find((item) => item.type.startsWith('image/'));
+
+					if (image) {
+						event.preventDefault();
+						const file = image.getAsFile();
+						if (file) {
+							const reader = new FileReader();
+							reader.onload = (e) => {
+								if (typeof e.target?.result === 'string') {
+									const node = view.state.schema.nodes.image.create({
+										src: e.target.result
+									});
+									const transaction = view.state.tr.replaceSelectionWith(node);
+									view.dispatch(transaction);
+								}
+							};
+							reader.readAsDataURL(file);
+							return true;
+						}
+					}
+					return false;
 				}
 			},
 			onTransaction: () => {
